@@ -5,27 +5,64 @@ import com.logistic.company.entity.Role;
 import com.logistic.company.entity.User;
 import com.logistic.company.repository.RoleRepo;
 import com.logistic.company.repository.UserRepo;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashSet;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-@Slf4j
-@Transactional(readOnly = true)
+//@Slf4j
+//@Transactional(readOnly = true)
 @Service
 public class UserService implements UserDetailsService {
-    private final UserRepo userRepo;
-    private final RoleRepo roleRepo;
+    private UserRepo repository;
+    private RoleRepo roleRepo;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepo userRepo, RoleRepo roleRepo) {
-        this.userRepo = userRepo;
+    public UserService(UserRepo repository, RoleRepo roleRepo, PasswordEncoder passwordEncoder) {
+        this.repository = repository;
         this.roleRepo = roleRepo;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    public List<User> getAll() {
+        return this.repository.findAll();
+    }
+
+    public User getByLogin(String login) {
+        return this.repository.findFirstByLogin(login);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        return repository.findFirstByLogin(username);
+    }
+
+    public UserDTO getUserById(Long id){
+        User user = repository.findFirstById(id);
+        if(user != null){
+            return convertEntityToDTO(user);
+        }
+        return getEmptyDTO();
+    }
+
+    public UserDTO getEmptyDTO(){
+        UserDTO userDTO = new UserDTO();
+        userDTO.setId(0L);
+        userDTO.setUuid("");
+        userDTO.setEmail("");
+        userDTO.setPhone("");
+        userDTO.setRole(null);
+        userDTO.setLogin("");
+        userDTO.setPassword("");
+        userDTO.setActive(false);
+        userDTO.setActivationCode("");
+        return  userDTO;
     }
 
     public Iterable<UserDTO> convertAllEntityToDTO(Iterable<User> users){
@@ -51,43 +88,8 @@ public class UserService implements UserDetailsService {
         return userDTO;
     }
 
-    @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return userRepo.findFirstByLogin(username);
-    }
-
-    public UserDTO getEmptyDTO(){
-        UserDTO userDTO = new UserDTO();
-        userDTO.setId(0L);
-        userDTO.setUuid("");
-        userDTO.setEmail("");
-        userDTO.setPhone("");
-        userDTO.setRole(null);
-        userDTO.setLogin("");
-        userDTO.setPassword("");
-        userDTO.setActive(false);
-        userDTO.setActivationCode("");
-        return  userDTO;
-    }
-
     public Iterable<UserDTO> getAllUsers(){
-        return convertAllEntityToDTO(userRepo.findAll());
-    }
-
-    public UserDTO getUserById(Long id){
-        User user = userRepo.findFirstById(id);
-        if(user != null){
-            return convertEntityToDTO(user);
-        }
-        return getEmptyDTO();
-    }
-
-    public UserDTO getUserByLogin(String login){
-        User user = userRepo.findFirstByLogin(login);
-        if(user != null){
-            return convertEntityToDTO(user);
-        }
-        return getEmptyDTO();
+        return convertAllEntityToDTO(repository.findAll());
     }
 
     @Transactional
@@ -100,15 +102,41 @@ public class UserService implements UserDetailsService {
                          boolean active,
                          String activationCode){
         Role role = roleRepo.findFirstByName(roleName);
-        userRepo.save(new User(uuid, email, phone, role, login, password, active, activationCode));
+        repository.save(new User(uuid, email, phone, role, login, password, active, activationCode));
     }
 
     @Transactional
     public void saveUser(User user){
         Role role = roleRepo.findFirstByName(user.getRole().getName());
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         if(role != null){
             user.setRole(role);
         }
-        userRepo.save(user);
+        repository.save(user);
+    }
+
+    @Transactional
+    public String addUser(User user, Map<String, Object> model) {
+        User userFromDB = repository.findFirstByLogin(user.getLogin());
+        if(userFromDB != null){
+            model.put("message", "User exists!");
+            return "registration";
+        }
+
+        user.setActive(true);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setRole(roleRepo.findFirstByName("user"));
+        user.setActivationCode(UUID.randomUUID().toString());
+        user.setUuid(UUID.randomUUID().toString());
+        repository.save(user);
+//        if(user.getEmail() != ""){
+//            String message = String.format(
+//                    "Hello, %s! \n" +
+//                            "Welcom to Trains. Please visit next link: http://localhost:8080/activate/%s",
+//                    user.getLogin(), user.getActivationCode()
+//            );
+//            mailSender.send(user.getEmail(), "Activation", message);
+//        }
+        return "redirect:/login";
     }
 }

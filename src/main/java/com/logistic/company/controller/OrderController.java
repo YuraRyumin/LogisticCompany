@@ -28,4 +28,9 @@ public class OrderController {
     public void createOrder(@RequestBody Order order){
         orderService.saveOrder(order);
     }
+
+    @RequestMapping(method = RequestMethod.POST, value = "/editorder")
+    public void editOrder(@RequestBody Order order){
+        orderService.saveOrder(order);
+    }
 }

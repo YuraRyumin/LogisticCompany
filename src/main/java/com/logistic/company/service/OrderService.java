@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashSet;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -71,6 +72,27 @@ public class OrderService {
 
     @Transactional
     public void saveOrder(Order order){
+        order.setCompleted(false);
+        order.setUniqueNumber(UUID.randomUUID().toString());
         orderRepo.save(order);
+    }
+
+    @Transactional
+    public void editOrder(Order order){
+        Order orderFromDB = orderRepo.findFirstByUniqueNumber(order.getUniqueNumber());
+        if(orderFromDB != null){
+            boolean wasChanged = false;
+            if(orderFromDB.isCompleted() != order.isCompleted()){
+                wasChanged = true;
+                orderFromDB.setCompleted(order.isCompleted());
+            }
+            if(order.getUniqueNumber() != null && orderFromDB.getUniqueNumber() != order.getUniqueNumber()){
+                wasChanged = true;
+                orderFromDB.setUniqueNumber(order.getUniqueNumber());
+            }
+            if(wasChanged){
+                orderRepo.save(orderFromDB);
+            }
+        }
     }
 }
